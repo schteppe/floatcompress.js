@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Compression of coordinates example</title>
+		<meta charset="utf-8">
+		<style>
+			body {
+				margin: 0px;
+				background-color: #000000;
+				overflow: hidden;
+			        color:white;
+			        font: 300 100.1% "Helvetica Neue", Helvetica, "Arial Unicode MS", Arial, sans-serif;
+			}
+			#info {padding:10px;width:50%}
+			a {color:white}
+		</style>
+	</head>
+	<body>
+
+		<script src="Three.js"></script>
+		<script src="dat.gui.js"></script>
+		<script src="../fcompress.js"></script>
+
+		<div id="info">
+		  Coordinate compression test by <a href="http://github.com/schteppe">Stefan Hedman</a>, UMIT Research Lab, Umeå University.<br>
+		  FCOMPRESS is used to do a lossy compression on coordinate data. Applications are low-bandwidth transfer and storage.<br>
+		  Pick test, compression level and speed, then study the result. Hint: low speeds shows compression artefacts best.
+		</div>
+
+		<script>
+
+			var camera, scene, renderer, gui;
+			var mesh, mesh_compressed;
+			var t = 0, angle = 0;
+			var axis = new THREE.Vector3(0,0,0);
+  
+			var settings = {test:"quaternion",compression:"int8",speed:0.001,bitCount:"0"};
+
+			init();
+			initTest(0);
+			animate();
+
+			function initTest(){
+
+			        // remove old things
+				scene.remove( mesh );
+				scene.remove( mesh_compressed );
+
+			        switch(settings.test){
+			        case "quaternion":
+                                  geometry = new THREE.CubeGeometry( 200, 200, 200 );
+				  material = new THREE.MeshLambertMaterial( { color:0xff0000 });
+
+			          mesh = new THREE.Mesh( geometry, material);
+				  mesh_compressed = new THREE.Mesh( geometry, material);
+
+			          mesh.position.x = -(mesh_compressed.position.x = 200);
+			          mesh.useQuaternion = mesh_compressed.useQuaternion = true;
+
+			          settings.bitCount = "" + (4 * settings.compression.match(/\d+/));
+			          updategui();
+
+                                  break;
+
+			        case "position":
+                                  geometry = new THREE.SphereGeometry( 100 , 16, 16);
+				  material = new THREE.MeshLambertMaterial( { color:0xff0000 });
+
+			          mesh = new THREE.Mesh( geometry, material);
+				  mesh_compressed = new THREE.Mesh( geometry, material);
+
+			          mesh.position.x = -(mesh_compressed.position.x = 200);
+			          mesh.useQuaternion = mesh_compressed.useQuaternion = true;
+
+			          settings.bitCount = "" + (3 * settings.compression.match(/\d+/));
+			          updategui();
+
+                                  break;
+
+			        default:
+                                  throw new Error("Unrecognized test: "+settings.test);
+                                  break;
+			        }
+				scene.add( mesh );
+				scene.add( mesh_compressed );
+			}
+
+			function init() {
+
+				scene = new THREE.Scene();
+
+				//
+
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 1000 );
+				camera.position.z = 400;
+			
+				scene.add( camera );
+
+
+				var light = new THREE.PointLight( 0xff2200 );
+				light.position.set( 0, 100, 400 );
+				scene.add( light );
+
+				var light = new THREE.AmbientLight( 0x110000 );
+				scene.add( light );
+
+			
+				//
+
+				renderer = new THREE.WebGLRenderer();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+
+
+			        gui = new dat.GUI();
+
+               		        // Render mode
+			        gui.add(settings,"test",["quaternion", "position"]).onChange(initTest);
+	         		gui.add(settings,"compression",["int8","int16","int32"]).onChange(initTest);
+	         		gui.add(settings,"bitCount","0");
+			        gui.add(settings,"speed",0.0001,0.01);
+			}
+
+			function updategui(){
+			  for (var i in gui.__controllers)
+			    gui.__controllers[i].updateDisplay();
+			}
+
+			function animate() {
+				requestAnimationFrame( animate );
+
+			        switch(settings.test){
+			        case "quaternion":
+			          angle = (t*2*Math.PI * settings.speed) % (2*Math.PI);
+			          axis.set(Math.cos(t*settings.speed),Math.sin(t*settings.speed),0);
+			          mesh.quaternion.setFromAxisAngle(axis,angle);
+
+			          angle = FCOMPRESS.compress(angle,settings.compression,0,2*Math.PI);
+			          angle = FCOMPRESS.uncompress(angle,settings.compression,0,2*Math.PI);
+
+			          var xyz = ['x','y','z'];
+			          for(var i in xyz){
+                                    axis[xyz[i]] = FCOMPRESS.compress(axis[xyz[i]],settings.compression,-1,1);
+                                    axis[xyz[i]] = FCOMPRESS.uncompress(axis[xyz[i]],settings.compression,-1,1);
+  			          }
+			          axis.normalize();
+			          mesh_compressed.quaternion.setFromAxisAngle(axis,angle);
+			          break;
+
+			        case "position":
+			          var max = 200;
+			          y = max*Math.sin(t*2*Math.PI * settings.speed);
+			          x = max*Math.cos(t*2*Math.PI * settings.speed);
+			          mesh.position.x = x-120;
+			          mesh.position.y = y;
+
+			          x = FCOMPRESS.compress(x,settings.compression,-max,max);
+			          x = FCOMPRESS.uncompress(x,settings.compression,-max,max);
+
+                                  y = FCOMPRESS.compress(y,settings.compression,-max,max);
+			          y = FCOMPRESS.uncompress(y,settings.compression,-max,max);
+
+			          mesh_compressed.position.x = x+120;
+			          mesh_compressed.position.y = y;
+			          break;
+			        }
+
+			        t++;
+				renderer.render( scene, camera );
+			}
+
+		</script>
+
+	</body>
+</html>
